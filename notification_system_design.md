@@ -1,43 +1,43 @@
 # Stage 1
 
-## Priority inbox approach
+## Priority Inbox Approach
 
-The frontend fetches the current notification feed from the provided protected API on the server side using `LOG_ACCESS_TOKEN`, so the token never needs to be exposed in the browser. After fetching, the app applies a deterministic ranking function:
+The application fetches notifications from the provided protected API and displays the most important notifications to the user.
 
-1. `Placement` gets weight `3`
-2. `Result` gets weight `2`
-3. `Event` gets weight `1`
-4. If two notifications have the same type, the one with the newer `Timestamp` is ranked higher
-5. The top `10` ranked notifications are rendered in the inbox
+To determine priority, the following order is used:
 
-This keeps the logic simple, auditable, and easy to tune if the business rules change later.
+- Placement notifications have the highest priority (Weight = 3)
+- Result notifications have medium priority (Weight = 2)
+- Event notifications have the lowest priority (Weight = 1)
 
-## How to maintain the top 10 as new notifications arrive
+After assigning weights, notifications are sorted based on priority. If two notifications belong to the same category, the notification with the latest timestamp is given preference.
 
-For the current stage, the page uses `cache: "no-store"` so every request reads the latest feed and recomputes the ranked top 10 immediately.
+Finally, only the top 10 notifications are displayed in the inbox.
 
-If notifications continue to arrive frequently, the same ranking function can be maintained efficiently in either of these ways:
+## Handling New Notifications
 
-- Poll the API on a fixed interval and rerun the sorter on the latest list
-- Push new notifications through SSE or WebSockets and insert them into a bounded top-10 structure
+For this stage, the application fetches fresh data on every request using `cache: "no-store"`. This ensures that users always see the latest notifications.
 
-For a streaming version, we would avoid sorting the entire list every time by keeping:
+Whenever new notifications are received:
 
-- A min-heap of size `10` keyed by `(weight, timestamp)`
-- A lookup set for notification IDs to avoid duplicates if needed
+1. Notifications are fetched from the API.
+2. Priority weights are assigned based on notification type.
+3. Notifications are sorted according to priority and timestamp.
+4. The top 10 notifications are displayed.
 
-Whenever a new notification arrives:
+For larger systems with a high volume of notifications, the ranking process can be optimized by maintaining a fixed-size priority queue (or min-heap) containing only the top 10 notifications. This avoids sorting the entire list every time a new notification arrives and improves overall performance.
 
-1. Compute its priority tuple from type weight and timestamp
-2. If the heap has fewer than `10` items, insert it
-3. Otherwise compare it with the current lowest-priority item in the heap
-4. Replace the heap root only if the new notification outranks it
+## Files Used
 
-That keeps update cost near `O(log 10)`, which is effectively constant for this inbox size.
+* `src/lib/notification.ts` – Fetches notifications from the protected API.
+* `src/lib/priority.ts` – Contains the logic for assigning priorities and sorting notifications.
+* `src/app/page.tsx` – Displays the notification inbox.
+* `src/app/layout.tsx` – Application layout configuration.
+* `src/app/globals.css` – Styling for the application.
 
-## Files updated
+## Time Complexity
 
-- `src/lib/notification.ts` for protected API fetching
-- `src/lib/priority.ts` for deterministic ranking
-- `src/app/page.tsx` for the inbox UI
-- `src/app/layout.tsx` and `src/app/globals.css` for app structure and styling
+* Sorting notifications: `O(n log n)`
+* Selecting top 10 notifications: `O(10)` after sorting
+
+Since the number of notifications is expected to be manageable for this stage, the chosen approach is simple, easy to understand, and efficient enough for the current requirements.
